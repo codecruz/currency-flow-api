@@ -83,8 +83,8 @@ foreach ($datosFechasValores as $fila) {
 
     foreach ($monedas as $indice => $moneda) {
         if ($indice === 'NOMBRE DE LA SERIE') continue;
-        $identificadorMoneda = $mapeoMonedas[$moneda] ?? 'Desconocido';
-
+        $identificadorMoneda = $mapeoMonedas[$moneda] ?? 'RON';
+        
         $valor = $fila[$indice];
 
         $jsonData[$identificadorMoneda][] = [
