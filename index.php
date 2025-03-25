@@ -33,7 +33,7 @@ $descripcionesSeries = $data[2];
 
 $mapeoMonedas = [];
 foreach ($monedas as $indice => $moneda) {
-    if ($indice === 'NOMBRE DE LA SERIE') continue;
+    if ($indice === 'CÓDIGO DE LA SERIE') continue;
     if (preg_match('/\(([A-Z]{3})\/[A-Z]{3}\)/', $descripcionesSeries[$indice], $matches)) {
         $identificadorMoneda = $matches[1];
         $mapeoMonedas[$moneda] = $identificadorMoneda;
@@ -60,7 +60,7 @@ $mesesEspanolIngles = [
 ];
 
 foreach ($datosFechasValores as $fila) {
-    $fechaOriginal = $fila['NOMBRE DE LA SERIE'];
+    $fechaOriginal = $fila['CÓDIGO DE LA SERIE'];
     $partesFecha = explode(' ', $fechaOriginal);
     if (count($partesFecha) === 3) {
         $dia = $partesFecha[0];
@@ -82,7 +82,7 @@ foreach ($datosFechasValores as $fila) {
     }
 
     foreach ($monedas as $indice => $moneda) {
-        if ($indice === 'NOMBRE DE LA SERIE') continue;
+        if ($indice === 'CÓDIGO DE LA SERIE') continue;
         $identificadorMoneda = $mapeoMonedas[$moneda] ?? 'RON';
         
         $valor = $fila[$indice];
