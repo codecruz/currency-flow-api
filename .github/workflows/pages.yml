@@ -1,0 +1,74 @@
+name: Deploy static API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'pages/**'
+      - 'composer.json'
+      - '.github/workflows/pages.yml'
+  schedule:
+    # New calendar day: publishes today's file (it resolves to the previous publication).
+    - cron: '5 0 * * *'
+    # After the ECB publication (around 16:00 Frankfurt time, 14:00-15:00 UTC).
+    - cron: '30 15 * * 1-5'
+    # Second attempt in case the publication was late.
+    - cron: '30 16 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: pages
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: xmlreader
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Run tests
+        run: vendor/bin/phpunit
+
+      # Fails (and GitHub emails the owner) if the ECB is unreachable, the data is
+      # invalid, older than 5 days or has too few currencies. The live site is kept.
+      - name: Build site from ECB data
+        run: php bin/build --out _site --site-url "https://codecruz.github.io/currency-flow-api"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages/_site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+      # GitHub disables scheduled workflows after 60 days without repository activity.
+      # Re-enabling the workflow from a scheduled run keeps the daily updates alive.
+      - name: Keep schedule enabled
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow enable pages.yml --repo "${{ github.repository }}"
