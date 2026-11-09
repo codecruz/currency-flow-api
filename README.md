@@ -24,7 +24,7 @@ use CodeCruz\CurrencyFlow\CurrencyFlow;
 $flow = CurrencyFlow::ecb(cache: $psr16Cache); // cache is optional but recommended
 
 $rate = $flow->rate('USD');                    // latest publication
-$rate->value;                                  // "1.0821"  (1 EUR = 1.0821 USD)
+$rate->value;                                  // "1.0827"  (1 EUR = 1.0827 USD)
 $rate->date;                                   // DateTimeImmutable 2025-03-21
 
 $rate = $flow->rate('USD', '2025-03-23');      // a Sunday
@@ -36,7 +36,7 @@ $flow->history('GBP', '2024-01-01', '2024-12-31'); // list<Rate>, publication da
 $flow->currencies();                           // ['AUD', 'BRL', 'CAD', ...]
 
 $rate->toArray();
-// ['base' => 'EUR', 'currency' => 'USD', 'rate' => '1.0821',
+// ['base' => 'EUR', 'currency' => 'USD', 'rate' => '1.0827',
 //  'date' => '2025-03-21', 'requested_date' => '2025-03-23', 'source' => 'ECB']
 ```
 

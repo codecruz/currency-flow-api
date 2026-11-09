@@ -39,7 +39,7 @@ paths:
                 date: '2025-03-21'
                 requested_date: '2025-03-23'
                 source: ECB
-                rates: { GBP: '0.83650', JPY: '161.53', USD: '1.0821' }
+                rates: { GBP: '0.83765', JPY: '160.99', USD: '1.0827' }
         '304': { $ref: '#/components/responses/NotModified' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -64,7 +64,7 @@ paths:
               example:
                 base: EUR
                 currency: USD
-                rate: '1.0821'
+                rate: '1.0827'
                 date: '2025-03-21'
                 requested_date: '2025-03-23'
                 source: ECB
@@ -173,7 +173,7 @@ components:
     Decimal:
       type: string
       pattern: '^\d+(\.\d+)?$'
-      example: '1.0821'
+      example: '1.0827'
     Rate:
       type: object
       required: [base, currency, rate, date, requested_date, source]
