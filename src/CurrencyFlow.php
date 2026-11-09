@@ -74,53 +74,106 @@ final class CurrencyFlow
      * On weekends and holidays, the closest earlier publication is returned
      * (see {@see Rate::isFallback()}).
      *
+     * With a $base other than the provider's (EUR for the ECB), a cross rate is
+     * derived from both published rates and rounded to 6 significant digits.
+     *
      * @throws UnknownCurrency|RateNotAvailable|InvalidArgument|SourceUnavailable|InvalidSourceData
      */
-    public function rate(string $currency, \DateTimeInterface|string|null $date = null): Rate
+    public function rate(string $currency, \DateTimeInterface|string|null $date = null, ?string $base = null): Rate
     {
         $currency = $this->normalizeCurrency($currency);
+        $base = $base === null ? $this->provider->baseCurrency() : $this->normalizeCurrency($base);
         $requested = $date === null ? null : $this->normalizeDate($date);
+        [$table, $effective] = $this->publication($requested);
 
-        $table = $requested === null ? $this->table(Coverage::Latest) : $this->tableCovering($requested);
-        $effective = $requested === null ? $table->lastDate() : $this->resolveDate($table, $requested);
+        $value = match (true) {
+            $currency === $base => '1',
+            $base === $this->provider->baseCurrency() => $this->quote($table, $effective, $currency),
+            default => self::formatDerived(
+                (float) $this->quote($table, $effective, $currency) / (float) $this->quote($table, $effective, $base),
+            ),
+        };
 
-        if ($currency === $this->provider->baseCurrency()) {
-            return $this->makeRate($currency, '1', $effective, $requested);
-        }
-
-        $value = $table->on($effective)[$currency] ?? null;
-        if ($value === null) {
-            if (!$table->hasCurrency($currency)) {
-                throw UnknownCurrency::code($currency, $this->provider->name());
-            }
-            throw new RateNotAvailable(sprintf('%s did not publish a %s rate on %s.', $this->provider->name(), $currency, $effective));
-        }
-
-        return $this->makeRate($currency, $value, $effective, $requested);
+        return $this->makeRate($currency, $value, $effective, $requested, $base);
     }
 
     /**
      * Every rate published for a date (or the latest one), keyed by currency.
-     * The base currency is not included.
+     * The base currency itself is not included.
+     *
+     * With a $base other than the provider's, every rate (including the provider's
+     * own base currency) is a derived cross rate, rounded to 6 significant digits.
      *
      * @return array<string, Rate>
      *
-     * @throws RateNotAvailable|InvalidArgument|SourceUnavailable|InvalidSourceData
+     * @throws UnknownCurrency|RateNotAvailable|InvalidArgument|SourceUnavailable|InvalidSourceData
      */
-    public function rates(\DateTimeInterface|string|null $date = null): array
+    public function rates(\DateTimeInterface|string|null $date = null, ?string $base = null): array
     {
+        $providerBase = $this->provider->baseCurrency();
+        $base = $base === null ? $providerBase : $this->normalizeCurrency($base);
         $requested = $date === null ? null : $this->normalizeDate($date);
+        [$table, $effective] = $this->publication($requested);
 
-        $table = $requested === null ? $this->table(Coverage::Latest) : $this->tableCovering($requested);
-        $effective = $requested === null ? $table->lastDate() : $this->resolveDate($table, $requested);
+        $published = $table->on($effective);
+        $baseValue = (float) $this->quote($table, $effective, $base);
 
         $rates = [];
-        foreach ($table->on($effective) as $currency => $value) {
-            $rates[$currency] = $this->makeRate($currency, $value, $effective, $requested);
+        foreach ([$providerBase => '1'] + $published as $currency => $value) {
+            if ($currency === $base) {
+                continue;
+            }
+            $rates[$currency] = $this->makeRate(
+                $currency,
+                $base === $providerBase ? $value : self::formatDerived((float) $value / $baseValue),
+                $effective,
+                $requested,
+                $base,
+            );
         }
         ksort($rates);
 
         return $rates;
+    }
+
+    /**
+     * Converts an amount between any two published currencies (or the base currency),
+     * using the rates of the given date (latest publication if omitted).
+     *
+     * The result is computed from the published rates (not the rounded cross rate)
+     * and rounded half away from zero to $precision decimals.
+     *
+     * @throws UnknownCurrency|RateNotAvailable|InvalidArgument|SourceUnavailable|InvalidSourceData
+     */
+    public function convert(
+        int|float|string $amount,
+        string $from,
+        string $to,
+        \DateTimeInterface|string|null $date = null,
+        int $precision = 2,
+    ): Conversion {
+        if (!is_numeric($amount) || !is_finite((float) $amount)) {
+            throw new InvalidArgument(sprintf('Amount "%s" is not a finite number.', $amount));
+        }
+        if ($precision < 0 || $precision > 10) {
+            throw new InvalidArgument('Precision must be between 0 and 10.');
+        }
+
+        $from = $this->normalizeCurrency($from);
+        $to = $this->normalizeCurrency($to);
+        $requested = $date === null ? null : $this->normalizeDate($date);
+        [$table, $effective] = $this->publication($requested);
+
+        $ratio = (float) $this->quote($table, $effective, $to) / (float) $this->quote($table, $effective, $from);
+        $result = number_format(round((float) $amount * $ratio, $precision), $precision, '.', '');
+
+        return new Conversion(
+            amount: (string) $amount,
+            from: $from,
+            to: $to,
+            result: $result,
+            rate: $this->rate($to, $requested, $from),
+        );
     }
 
     /**
@@ -281,10 +334,59 @@ final class CurrencyFlow
         }
     }
 
-    private function makeRate(string $currency, string $value, string $date, ?string $requested): Rate
+    /**
+     * Table and publication date to use for a requested date (latest when null).
+     *
+     * @return array{RateTable, string}
+     */
+    private function publication(?string $requested): array
+    {
+        if ($requested === null) {
+            $table = $this->table(Coverage::Latest);
+
+            return [$table, $table->lastDate()];
+        }
+
+        $table = $this->tableCovering($requested);
+
+        return [$table, $this->resolveDate($table, $requested)];
+    }
+
+    /**
+     * Published value of 1 provider-base unit in $currency on an exact publication date.
+     */
+    private function quote(RateTable $table, string $date, string $currency): string
+    {
+        if ($currency === $this->provider->baseCurrency()) {
+            return '1';
+        }
+
+        $value = $table->on($date)[$currency] ?? null;
+        if ($value !== null) {
+            return $value;
+        }
+
+        if (!$table->hasCurrency($currency)) {
+            throw UnknownCurrency::code($currency, $this->provider->name());
+        }
+
+        throw new RateNotAvailable(sprintf('%s did not publish a %s rate on %s.', $this->provider->name(), $currency, $date));
+    }
+
+    /**
+     * Derived rates carry 6 significant digits: the ECB publishes 5, so more would be false precision.
+     */
+    private static function formatDerived(float $value): string
+    {
+        $decimals = max(0, 5 - (int) floor(log10($value)));
+
+        return number_format($value, $decimals, '.', '');
+    }
+
+    private function makeRate(string $currency, string $value, string $date, ?string $requested, ?string $base = null): Rate
     {
         return new Rate(
-            base: $this->provider->baseCurrency(),
+            base: $base ?? $this->provider->baseCurrency(),
             currency: $currency,
             value: $value,
             date: $this->toDate($date),

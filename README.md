@@ -1,8 +1,15 @@
 # Currency Flow
 
+[![CI](https://github.com/codecruz/currency-flow-api/actions/workflows/ci.yml/badge.svg)](https://github.com/codecruz/currency-flow-api/actions/workflows/ci.yml)
+[![Packagist](https://img.shields.io/packagist/v/codecruz/currency-flow.svg)](https://packagist.org/packages/codecruz/currency-flow)
+[![PHP](https://img.shields.io/packagist/dependency-v/codecruz/currency-flow/php.svg)](https://packagist.org/packages/codecruz/currency-flow)
+[![Static API](https://img.shields.io/badge/static%20API-GitHub%20Pages-1f5fbf.svg)](https://codecruz.github.io/currency-flow-api/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Official euro foreign exchange reference rates from the **European Central Bank**, for PHP.
 
 - Latest, historical (since 1999-01-04) and range lookups.
+- Cross rates and conversions between any two currencies (USD → GBP), not only from the euro.
 - Weekends and holidays resolve to the previous publication, and the response tells you so.
 - Rates are kept as published decimal strings, no float rounding.
 - Optional PSR-16 cache, with stale data served if the ECB is unreachable.
@@ -42,6 +49,25 @@ $rate->toArray();
 // ['base' => 'EUR', 'currency' => 'USD', 'rate' => '1.0827',
 //  'date' => '2025-03-21', 'requested_date' => '2025-03-23', 'source' => 'ECB']
 ```
+
+### Cross rates and conversions
+
+The ECB only publishes rates against the euro. Rates between two other currencies are derived
+from both published rates, as the ECB itself suggests, and carry 6 significant digits.
+
+```php
+$flow->rate('GBP', '2025-03-21', base: 'USD')->value;   // "0.773668"  (1 USD = 0.773668 GBP)
+$flow->rates('2025-03-21', base: 'USD')['EUR']->value;  // "0.923617"
+
+$conversion = $flow->convert(100, 'USD', 'GBP', '2025-03-21');
+$conversion->result;                                    // "77.37"
+$conversion->rate->value;                               // "0.773668"
+
+$flow->convert('10', 'USD', 'JPY', '2025-03-21', precision: 0)->result; // "1487"
+```
+
+`convert()` accepts integers, floats or numeric strings. The result is computed from the published
+rates, not from the rounded cross rate, and rounded half away from zero (default: 2 decimals).
 
 Dates can be `YYYY-MM-DD` strings or any `DateTimeInterface`, and are interpreted in the ECB's time zone (Europe/Berlin).
 
