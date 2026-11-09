@@ -41,7 +41,7 @@ final class SiteBuilderTest extends TestCase
             }
         };
 
-        $builder = new SiteBuilder(new TableProvider($table, 'ECB', 'EUR'), $clock, dirname(__DIR__) . '/templates', 'https://example.test/api/');
+        $builder = new SiteBuilder(new TableProvider($table, 'ECB', 'EUR'), $clock, dirname(__DIR__) . '/templates', dirname(__DIR__) . '/translations', 'https://example.test/api/');
 
         return $builder->build($this->out);
     }
@@ -156,6 +156,98 @@ final class SiteBuilderTest extends TestCase
         self::assertStringContainsString('max="2025-03-24"', $index);
         self::assertFileExists($this->out . '/404.html');
         self::assertFileExists($this->out . '/.nojekyll');
+    }
+
+    public function testEveryLanguageHasItsPage(): void
+    {
+        $this->build();
+
+        foreach (SiteBuilder::LOCALES as $locale) {
+            $path = $locale === 'en' ? 'index.html' : $locale . '/index.html';
+            $html = (string) file_get_contents($this->out . '/' . $path);
+            $url = 'https://example.test/api/' . ($locale === 'en' ? '' : $locale . '/');
+
+            self::assertStringNotContainsString('{{', $html, $path);
+            self::assertStringContainsString('<html lang="' . $locale . '">', $html);
+            self::assertStringContainsString('<link rel="canonical" href="' . $url . '">', $html);
+            self::assertSame(7, substr_count($html, 'rel="alternate" hreflang='), $path);
+            self::assertStringContainsString('<link rel="alternate" hreflang="x-default" href="https://example.test/api/">', $html);
+            // Placeholders inside translations are filled in a second pass.
+            self::assertStringContainsString('<strong>2025-03-21</strong>', $html);
+        }
+    }
+
+    public function testPagesInFoldersPointToTheSharedApi(): void
+    {
+        $this->build();
+
+        $en = (string) file_get_contents($this->out . '/index.html');
+        $es = (string) file_get_contents($this->out . '/es/index.html');
+
+        self::assertStringContainsString("load('v1/currencies.json')", $en);
+        self::assertStringContainsString("load('../v1/currencies.json')", $es);
+        self::assertStringContainsString('<a href="../v1/latest.json">', $es);
+        self::assertFileDoesNotExist($this->out . '/es/v1/latest.json');
+    }
+
+    public function testLanguageSwitcherAndTranslatedContent(): void
+    {
+        $this->build();
+
+        $es = (string) file_get_contents($this->out . '/es/index.html');
+        self::assertStringContainsString('<a href="./" hreflang="es" lang="es" aria-current="page">Español</a>', $es);
+        self::assertStringContainsString('<a href="../" hreflang="en" lang="en">English</a>', $es);
+        self::assertStringContainsString('<a href="../de/" hreflang="de" lang="de">Deutsch</a>', $es);
+        self::assertStringContainsString('<h1>Tipos de cambio del euro</h1>', $es);
+        self::assertStringContainsString('"js_fallback":"El {requested} no hubo publicación; se usa la del {date}."', $es);
+
+        $de = (string) file_get_contents($this->out . '/de/index.html');
+        self::assertStringContainsString('<h1>Euro-Wechselkurse</h1>', $de);
+    }
+
+    public function testNotFoundPageIsMultilingual(): void
+    {
+        $this->build();
+
+        $html = (string) file_get_contents($this->out . '/404.html');
+        self::assertStringNotContainsString('{{', $html);
+        self::assertStringContainsString('Page not found', $html);
+        foreach (SiteBuilder::LOCALES as $locale) {
+            self::assertStringContainsString('"' . $locale . '":{"title":', $html);
+        }
+    }
+
+    public function testTranslationsMustHaveTheSameKeys(): void
+    {
+        $dir = $this->out . '-translations';
+        mkdir($dir);
+        foreach (SiteBuilder::LOCALES as $locale) {
+            copy(dirname(__DIR__) . '/translations/' . $locale . '.json', $dir . '/' . $locale . '.json');
+        }
+        $de = json_decode((string) file_get_contents($dir . '/de.json'), true);
+        self::assertIsArray($de);
+        unset($de['h1']);
+        file_put_contents($dir . '/de.json', json_encode($de));
+
+        $table = (new EcbXmlParser())->parse((string) file_get_contents(__DIR__ . '/Fixtures/full.xml'));
+        $clock = new class implements ClockInterface {
+            public function now(): \DateTimeImmutable
+            {
+                return new \DateTimeImmutable('2025-03-24 10:00', new \DateTimeZone('Europe/Berlin'));
+            }
+        };
+        $builder = new SiteBuilder(new TableProvider($table, 'ECB', 'EUR'), $clock, dirname(__DIR__) . '/templates', $dir, 'https://example.test/');
+
+        try {
+            $builder->build($this->out);
+            self::fail('Expected a translation error.');
+        } catch (\RuntimeException $e) {
+            self::assertStringContainsString('de.json do not match en.json (missing: h1; extra: none)', $e->getMessage());
+        } finally {
+            exec('rm -rf ' . escapeshellarg($dir));
+        }
+
+        self::assertDirectoryDoesNotExist($this->out, 'Nothing is written when translations are invalid.');
     }
 
     public function testRebuildReplacesPreviousOutput(): void

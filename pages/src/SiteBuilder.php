@@ -12,7 +12,9 @@ use Psr\Clock\ClockInterface;
 /**
  * Builds the static JSON API served from GitHub Pages.
  *
- *     index.html                         documentation and live lookup
+ *     index.html                         documentation and converter, in English (x-default)
+ *     {es,de,fr,it,pt}/index.html        the same page in each other language
+ *     404.html                           multilingual not-found page
  *     v1/meta.json                       source, coverage and generation time
  *     v1/latest.json                     latest publication, every currency
  *     v1/rates/{YYYY-MM-DD}.json         every calendar day since 1999-01-04
@@ -25,6 +27,9 @@ final class SiteBuilder
 {
     private const MARKER = '.currency-flow-site';
 
+    /** Site languages; the first one is the default, served at the root. */
+    public const LOCALES = ['en', 'es', 'de', 'fr', 'it', 'pt'];
+
     private const JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR;
 
     private int $files = 0;
@@ -33,12 +38,14 @@ final class SiteBuilder
         private readonly TableProvider $provider,
         private readonly ClockInterface $clock,
         private readonly string $templateDir,
+        private readonly string $translationsDir,
         private readonly string $siteUrl,
     ) {
     }
 
     public function build(string $outDir): BuildReport
     {
+        $translations = $this->loadTranslations();
         $this->prepareOutput($outDir);
         $this->files = 0;
 
@@ -121,21 +128,150 @@ final class SiteBuilder
             'generated_at' => $generatedAt,
         ]);
 
-        $this->writeTemplate($outDir . '/index.html', 'index.html', [
+        $globals = [
             '{{LATEST_DATE}}' => $latestDate,
             '{{FIRST_DATE}}' => $table->firstDate(),
             '{{TODAY}}' => $end,
             '{{CURRENCY_COUNT}}' => (string) count($active),
-            '{{DAILY_FILES}}' => number_format($dailyFiles, 0, ',', '.'),
             '{{SITE_URL}}' => rtrim($this->siteUrl, '/'),
             '{{GENERATED_AT}}' => $generatedAt,
-        ]);
-        $this->writeTemplate($outDir . '/404.html', '404.html', []);
+        ];
+        $this->writePages($outDir, $translations, $globals, $dailyFiles);
         $this->write($outDir . '/.nojekyll', '');
 
         $age = (int) (new \DateTimeImmutable($latestDate, $today->getTimezone()))->diff($today)->days;
 
         return new BuildReport($latestDate, $age, $active, $dailyFiles, $this->files);
+    }
+
+    /**
+     * @param array<string, array<string, string>> $translations locale => key => text
+     * @param array<string, string>                $globals
+     */
+    private function writePages(string $outDir, array $translations, array $globals, int $dailyFiles): void
+    {
+        $siteUrl = rtrim($this->siteUrl, '/');
+        $default = self::LOCALES[0];
+        $url = static fn (string $locale): string => $siteUrl . '/' . ($locale === $default ? '' : $locale . '/');
+
+        $hreflang = [];
+        foreach (self::LOCALES as $locale) {
+            $hreflang[] = sprintf('<link rel="alternate" hreflang="%s" href="%s">', $locale, $url($locale));
+        }
+        $hreflang[] = sprintf('<link rel="alternate" hreflang="x-default" href="%s">', $url($default));
+
+        $suggest = [];
+        $notFound = [];
+        foreach (self::LOCALES as $locale) {
+            $t = $translations[$locale];
+            $suggest[$locale] = ['text' => $t['suggest_text'], 'link' => $t['suggest_link'], 'href' => $url($locale)];
+            $notFound[$locale] = ['title' => $t['nf_title'], 'text' => $t['nf_text'], 'link' => $t['nf_link'], 'href' => $url($locale)];
+        }
+
+        foreach (self::LOCALES as $locale) {
+            $t = $translations[$locale];
+            $root = $locale === $default ? '' : '../';
+
+            $links = [];
+            foreach (self::LOCALES as $other) {
+                $links[] = sprintf(
+                    '<a href="%s" hreflang="%s" lang="%s"%s>%s</a>',
+                    $other === $locale ? './' : $root . ($other === $default ? '' : $other . '/'),
+                    $other,
+                    $other,
+                    $other === $locale ? ' aria-current="page"' : '',
+                    htmlspecialchars($translations[$other]['_name']),
+                );
+            }
+
+            $jsStrings = array_filter($t, static fn (string $key): bool => str_starts_with($key, 'js_'), ARRAY_FILTER_USE_KEY);
+
+            $this->writeTemplate(
+                $outDir . '/' . ($locale === $default ? '' : $locale . '/') . 'index.html',
+                'index.html',
+                $this->translationPairs($t),
+                [
+                    '{{LANG}}' => $locale,
+                    '{{ROOT}}' => $root,
+                    '{{CANONICAL}}' => $url($locale),
+                    '{{HREFLANG}}' => implode("\n", $hreflang),
+                    '{{LANGUAGE_LINKS}}' => implode(' ', $links),
+                    '{{DAILY_FILES}}' => number_format($dailyFiles, 0, '', $t['_thousands']),
+                    '{{JS_STRINGS}}' => json_encode($jsStrings, self::JSON_FLAGS | JSON_HEX_TAG),
+                    '{{SUGGEST_JSON}}' => json_encode($suggest, self::JSON_FLAGS | JSON_HEX_TAG),
+                ] + $globals,
+            );
+        }
+
+        $this->writeTemplate(
+            $outDir . '/404.html',
+            '404.html',
+            $this->translationPairs($translations[$default]),
+            ['{{NF_JSON}}' => json_encode($notFound, self::JSON_FLAGS | JSON_HEX_TAG)] + $globals,
+        );
+    }
+
+    /**
+     * @param array<string, string> $translation
+     *
+     * @return array<string, string>
+     */
+    private function translationPairs(array $translation): array
+    {
+        $pairs = [];
+        foreach ($translation as $key => $text) {
+            $pairs['{{t:' . $key . '}}'] = $text;
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * Loads every locale and checks they all have exactly the keys of the default one.
+     *
+     * @return array<string, array<string, string>>
+     */
+    private function loadTranslations(): array
+    {
+        $translations = [];
+        foreach (self::LOCALES as $locale) {
+            $file = $this->translationsDir . '/' . $locale . '.json';
+            $content = is_file($file) ? file_get_contents($file) : false;
+            if ($content === false) {
+                throw new \RuntimeException(sprintf('Missing translation file "%s".', $file));
+            }
+
+            $data = json_decode($content, true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($data)) {
+                throw new \RuntimeException(sprintf('Translation file "%s" must be a JSON object.', $file));
+            }
+
+            $strings = [];
+            foreach ($data as $key => $text) {
+                if (!is_string($text) || trim($text) === '') {
+                    throw new \RuntimeException(sprintf('Translation "%s" in %s.json must be a non-empty string.', $key, $locale));
+                }
+                $strings[(string) $key] = $text;
+            }
+            $translations[$locale] = $strings;
+        }
+
+        $reference = array_keys($translations[self::LOCALES[0]]);
+        foreach ($translations as $locale => $strings) {
+            $missing = array_diff($reference, array_keys($strings));
+            $extra = array_diff(array_keys($strings), $reference);
+            if ($missing !== [] || $extra !== []) {
+                throw new \RuntimeException(sprintf(
+                    'Translation keys of %s.json do not match %s.json (missing: %s; extra: %s).',
+                    $locale,
+                    self::LOCALES[0],
+                    implode(', ', $missing) ?: 'none',
+                    implode(', ', $extra) ?: 'none',
+                ));
+            }
+        }
+
+        return $translations;
     }
 
     /**
@@ -225,16 +361,23 @@ final class SiteBuilder
     }
 
     /**
-     * @param array<string, string> $replacements
+     * Fills a template in successive passes, so placeholders inside translations
+     * (filled in the first pass) are replaced by the next ones.
+     *
+     * @param array<string, string> ...$passes
      */
-    private function writeTemplate(string $path, string $template, array $replacements): void
+    private function writeTemplate(string $path, string $template, array ...$passes): void
     {
         $content = file_get_contents($this->templateDir . '/' . $template);
         if ($content === false) {
             throw new \RuntimeException(sprintf('Template "%s" not found.', $template));
         }
 
-        $this->write($path, strtr($content, $replacements));
+        foreach ($passes as $replacements) {
+            $content = strtr($content, $replacements);
+        }
+
+        $this->write($path, $content);
     }
 
     private function writeJson(string $path, mixed $data): void

@@ -10,8 +10,9 @@ API resolves weekends and holidays exactly like the library and the HTTP API.
 ## Output
 
 ```
-index.html                         documentation and converter
-404.html                           page for missing routes
+index.html                         documentation and converter, in English (x-default)
+{es,de,fr,it,pt}/index.html        the same page in each other language
+404.html                           page for missing routes, in the visitor's language
 v1/meta.json                       source, coverage and generation time
 v1/latest.json                     latest publication, every currency
 v1/rates/{YYYY-MM-DD}.json         every calendar day from 1999-01-04 to today
@@ -56,12 +57,35 @@ exit the workflow stops before deploying, so the previous site stays online.
 GitHub disables scheduled workflows after 60 days without repository activity. Each scheduled run re-enables
 the workflow to keep the daily updates going.
 
+## Languages
+
+The site is generated in English (at the root, also `x-default`), Spanish, German, French, Italian and Portuguese
+(in `/es/`, `/de/`, `/fr/`, `/it/` and `/pt/`), from one template and one file per language in
+[`translations/`](translations).
+
+- Every page has a canonical URL, `hreflang` links to all the others and a language switcher.
+- When the browser prefers another available language, a dismissible notice links to it. There is no automatic
+  redirect, so search engines and shared links always get the page they asked for.
+- The converter shows currency names with the browser's `Intl.DisplayNames` and formats numbers for the page's
+  language, so no currency names have to be maintained.
+- GitHub Pages serves a single `404.html`, which picks the visitor's language in the browser (English otherwise).
+
+### Adding a language
+
+1. Copy [`translations/en.json`](translations/en.json) to `translations/<code>.json` and translate every value.
+   `_name` is the language's own name, shown in the switcher, and `_thousands` its thousands separator.
+2. Add the code to `SiteBuilder::LOCALES` in [`src/SiteBuilder.php`](src/SiteBuilder.php).
+3. Run `composer test`. The build fails if any language is missing a key or has extra ones.
+
+Values may contain HTML (links, `<code>`) and the placeholders `{{LATEST_DATE}}` and `{{FIRST_DATE}}`. Keys
+starting with `js_` are used by the converter, and `{date}` and `{requested}` are filled in by the browser.
+
 ## Templates
 
 [`templates/index.html`](templates/index.html) and [`templates/404.html`](templates/404.html) are plain HTML with
-`{{PLACEHOLDERS}}` that are filled in at build time (`LATEST_DATE`, `FIRST_DATE`, `TODAY`, `CURRENCY_COUNT`,
-`DAILY_FILES`, `SITE_URL`, `GENERATED_AT`). The converter in `index.html` is vanilla JavaScript that reads the
-JSON files with relative URLs, so it also works in a local preview.
+`{{t:key}}` markers for translations and `{{PLACEHOLDERS}}` for build data (`LATEST_DATE`, `FIRST_DATE`, `TODAY`,
+`CURRENCY_COUNT`, `DAILY_FILES`, `SITE_URL`, `GENERATED_AT`). Translations are filled in first, then build data. The
+converter is vanilla JavaScript that reads the JSON files with relative URLs, so it also works in a local preview.
 
 ## Development
 

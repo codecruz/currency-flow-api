@@ -44,8 +44,15 @@ They state how many units of each currency equal **1 EUR**.
 ## Website and static JSON API
 
 **[codecruz.github.io/currency-flow-api](https://codecruz.github.io/currency-flow-api/)** has the documentation and a
-converter, and serves every endpoint as a static JSON file on GitHub Pages. It has open CORS and no rate limits,
-and a missing date or currency returns a `404`.
+converter between any two currencies, and serves every endpoint as a static JSON file on GitHub Pages. It has open
+CORS and no rate limits, and a missing date or currency returns a `404`.
+
+The website is available in [English](https://codecruz.github.io/currency-flow-api/),
+[Español](https://codecruz.github.io/currency-flow-api/es/), [Deutsch](https://codecruz.github.io/currency-flow-api/de/),
+[Français](https://codecruz.github.io/currency-flow-api/fr/), [Italiano](https://codecruz.github.io/currency-flow-api/it/)
+and [Português](https://codecruz.github.io/currency-flow-api/pt/). Currency names and numbers follow the reader's
+language, and visitors are offered (never forced) their browser's language. The JSON API is language-neutral:
+ISO 4217 codes, ISO 8601 dates and decimal strings.
 
 | Endpoint | Contents |
 |----------|----------|

@@ -1,23 +1,39 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>No encontrado</title>
+<title>404</title>
+<meta name="robots" content="noindex">
 <style>
-  :root { --bg: #f8f9fb; --text: #1b1d21; --muted: #5d636b; --accent: #1f5fbf; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #121417; --text: #eceef1; --muted: #9aa1a9; --accent: #8ab4f8; } }
+  :root { --bg: #f8f9fb; --text: #1b1d21; --muted: #5d636b; --accent: #1f5fbf; --code-bg: #eff2f6; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #121417; --text: #eceef1; --muted: #9aa1a9; --accent: #8ab4f8; --code-bg: #22262b; } }
   body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, sans-serif; }
   main { max-width: 640px; margin: 0 auto; padding: 64px 16px; }
   a { color: var(--accent); }
   p { color: var(--muted); }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, Menlo, Consolas, monospace; }
 </style>
 </head>
 <body>
 <main>
-  <h1>404</h1>
-  <p>No hay datos en esta ruta. Las fechas van en formato <code>YYYY-MM-DD</code>, no pueden ser futuras y empiezan el 1999-01-04; las divisas, en código ISO 4217 en mayúsculas (<code>USD</code>).</p>
-  <p><a href="/currency-flow-api/">Ver la documentación de la API</a></p>
+  <h1>404 · <span id="title">{{t:nf_title}}</span></h1>
+  <p id="text">{{t:nf_text}}</p>
+  <p><a id="link" href="{{SITE_URL}}/">{{t:nf_link}}</a></p>
 </main>
+<script>
+(() => {
+  // GitHub Pages serves a single 404 page: pick the visitor's language, English otherwise.
+  const NF = {{NF_JSON}};
+  const wanted = (navigator.languages || [navigator.language]).map((l) => String(l).slice(0, 2).toLowerCase());
+  const lang = wanted.find((l) => NF[l]);
+  if (!lang) return;
+  document.documentElement.lang = lang;
+  document.getElementById('title').textContent = NF[lang].title;
+  document.getElementById('text').innerHTML = NF[lang].text;
+  document.getElementById('link').textContent = NF[lang].link;
+  document.getElementById('link').href = NF[lang].href;
+})();
+</script>
 </body>
 </html>

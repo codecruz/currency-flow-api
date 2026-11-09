@@ -28,7 +28,7 @@ $clock = new class implements ClockInterface {
 
 try {
     $provider = TableProvider::from(new EcbProvider(new NativeTransport(timeoutSeconds: 60)));
-    $report = (new SiteBuilder($provider, $clock, dirname(__DIR__) . '/templates', $siteUrl))->build($out);
+    $report = (new SiteBuilder($provider, $clock, dirname(__DIR__) . '/templates', dirname(__DIR__) . '/translations', $siteUrl))->build($out);
 } catch (Throwable $e) {
     fwrite(STDERR, 'Build failed: ' . $e->getMessage() . PHP_EOL);
     exit(1);
