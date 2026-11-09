@@ -1,0 +1,40 @@
+{
+    "name": "codecruz/currency-flow",
+    "description": "Official ECB euro foreign exchange reference rates, with historical lookups and previous-business-day resolution.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["currency", "exchange rates", "ecb", "forex", "euro"],
+    "authors": [
+        {
+            "name": "codecruz"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "ext-xmlreader": "*",
+        "psr/clock": "^1.0",
+        "psr/simple-cache": "^2.0 || ^3.0"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "CodeCruz\\CurrencyFlow\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "CodeCruz\\CurrencyFlow\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable"
+}
