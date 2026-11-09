@@ -1,0 +1,262 @@
+openapi: 3.1.0
+info:
+  title: Currency Flow API
+  version: 1.0.0
+  summary: Euro foreign exchange reference rates published by the European Central Bank.
+  description: |
+    All rates are quoted against the euro: `1 EUR = rate × currency`.
+
+    Rates are returned as **decimal strings**, exactly as published by the ECB,
+    to avoid floating point rounding.
+
+    When a requested date has no publication (weekends, TARGET holidays), the closest
+    earlier publication is used; `date` is the publication used and `requested_date`
+    the one asked for.
+  license:
+    name: MIT
+    identifier: MIT
+  contact:
+    name: codecruz
+    url: https://github.com/codecruz/currency-flow-api
+
+paths:
+  /v1/rates:
+    get:
+      operationId: listRates
+      summary: All rates for a date (latest publication if omitted)
+      parameters:
+        - $ref: '#/components/parameters/Date'
+      responses:
+        '200':
+          description: Rates for every published currency.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RateSet' }
+              example:
+                base: EUR
+                date: '2025-03-21'
+                requested_date: '2025-03-23'
+                source: ECB
+                rates: { GBP: '0.83765', JPY: '160.99', USD: '1.0827' }
+        '304': { $ref: '#/components/responses/NotModified' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /v1/rates/{currency}:
+    get:
+      operationId: getRate
+      summary: Rate for one currency on a date (latest publication if omitted)
+      parameters:
+        - $ref: '#/components/parameters/Currency'
+        - $ref: '#/components/parameters/Date'
+      responses:
+        '200':
+          description: The rate.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Rate' }
+              example:
+                base: EUR
+                currency: USD
+                rate: '1.0827'
+                date: '2025-03-21'
+                requested_date: '2025-03-23'
+                source: ECB
+        '304': { $ref: '#/components/responses/NotModified' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /v1/rates/{currency}/history:
+    get:
+      operationId: getHistory
+      summary: Published rates for one currency between two dates (inclusive)
+      description: Only publication dates are returned; weekends and holidays are skipped.
+      parameters:
+        - $ref: '#/components/parameters/Currency'
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: The series, oldest first.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/History' }
+        '304': { $ref: '#/components/responses/NotModified' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /v1/currencies:
+    get:
+      operationId: listCurrencies
+      summary: Currencies in the latest publication
+      responses:
+        '200':
+          description: ISO 4217 codes, sorted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [base, source, currencies]
+                properties:
+                  base: { type: string, example: EUR }
+                  source: { type: string, example: ECB }
+                  currencies:
+                    type: array
+                    items: { $ref: '#/components/schemas/CurrencyCode' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /health:
+    get:
+      operationId: health
+      summary: Service health, for uptime monitoring
+      description: 503 when the latest publication is older than 5 days or the source is unreachable.
+      responses:
+        '200':
+          description: Healthy.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503':
+          description: Data is stale or the source is unavailable.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/Health' }
+                  - { $ref: '#/components/schemas/Problem' }
+
+components:
+  parameters:
+    Currency:
+      name: currency
+      in: path
+      required: true
+      description: ISO 4217 code, case-insensitive. `EUR` always returns `1`.
+      schema: { $ref: '#/components/schemas/CurrencyCode' }
+    Date:
+      name: date
+      in: query
+      required: false
+      description: Date in `YYYY-MM-DD` (Europe/Berlin). Not in the future; data starts on 1999-01-04.
+      schema: { type: string, format: date }
+
+  headers:
+    ETag:
+      description: Send it back in `If-None-Match` to get a 304 when nothing changed.
+      schema: { type: string }
+
+  schemas:
+    CurrencyCode:
+      type: string
+      pattern: '^[A-Za-z]{3}$'
+      example: USD
+    Decimal:
+      type: string
+      pattern: '^\d+(\.\d+)?$'
+      example: '1.0827'
+    Rate:
+      type: object
+      required: [base, currency, rate, date, requested_date, source]
+      properties:
+        base: { type: string, example: EUR }
+        currency: { type: string, example: USD }
+        rate: { $ref: '#/components/schemas/Decimal' }
+        date: { type: string, format: date, description: Publication date used. }
+        requested_date:
+          type: [string, 'null']
+          format: date
+          description: Date asked for; null when the latest publication was requested.
+        source: { type: string, example: ECB }
+    RateSet:
+      type: object
+      required: [base, date, requested_date, source, rates]
+      properties:
+        base: { type: string }
+        date: { type: string, format: date }
+        requested_date: { type: [string, 'null'], format: date }
+        source: { type: string }
+        rates:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/Decimal' }
+    History:
+      type: object
+      required: [base, currency, from, to, source, rates]
+      properties:
+        base: { type: string }
+        currency: { type: string }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        source: { type: string }
+        rates:
+          type: array
+          items:
+            type: object
+            required: [date, rate]
+            properties:
+              date: { type: string, format: date }
+              rate: { $ref: '#/components/schemas/Decimal' }
+    Health:
+      type: object
+      required: [status, source, latest_date, age_days]
+      properties:
+        status: { type: string, enum: [ok, stale] }
+        source: { type: string }
+        latest_date: { type: string, format: date }
+        age_days: { type: integer }
+    Problem:
+      description: RFC 7807 problem details.
+      type: object
+      required: [type, title, status, detail]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+
+  responses:
+    NotModified:
+      description: The representation has not changed since the given ETag.
+    BadRequest:
+      description: Malformed currency or date, future date, reversed or incomplete range.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Unknown currency, or no rate available for that date.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    BadGateway:
+      description: The ECB returned invalid data and no cached copy is available.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unavailable:
+      description: The ECB is unreachable and no cached copy is available. See `Retry-After`.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }

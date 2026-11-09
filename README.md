@@ -24,7 +24,7 @@ use CodeCruz\CurrencyFlow\CurrencyFlow;
 $flow = CurrencyFlow::ecb(cache: $psr16Cache); // cache is optional but recommended
 
 $rate = $flow->rate('USD');                    // latest publication
-$rate->value;                                  // "1.0821"  (1 EUR = 1.0821 USD)
+$rate->value;                                  // "1.0827"  (1 EUR = 1.0827 USD)
 $rate->date;                                   // DateTimeImmutable 2025-03-21
 
 $rate = $flow->rate('USD', '2025-03-23');      // a Sunday
@@ -36,7 +36,7 @@ $flow->history('GBP', '2024-01-01', '2024-12-31'); // list<Rate>, publication da
 $flow->currencies();                           // ['AUD', 'BRL', 'CAD', ...]
 
 $rate->toArray();
-// ['base' => 'EUR', 'currency' => 'USD', 'rate' => '1.0821',
+// ['base' => 'EUR', 'currency' => 'USD', 'rate' => '1.0827',
 //  'date' => '2025-03-21', 'requested_date' => '2025-03-23', 'source' => 'ECB']
 ```
 
@@ -86,6 +86,29 @@ The ECB publishes three feeds, used according to the date you ask for:
 
 Each feed is downloaded at most once per instance and once per `cacheTtl` when a cache is provided.
 The ECB updates rates around 16:00 CET on TARGET business days.
+
+## HTTP API
+
+The [`server/`](server) directory contains a ready-to-run HTTP API built on this library
+(Slim 4, file cache, RFC 7807 errors, ETags). It is not part of the Composer package.
+
+```bash
+cd server
+composer install
+composer serve            # http://127.0.0.1:8080
+```
+
+| Endpoint                                                  | Description                                 |
+|-----------------------------------------------------------|---------------------------------------------|
+| `GET /v1/rates?date=YYYY-MM-DD`                           | All rates for a date (latest if omitted)    |
+| `GET /v1/rates/{currency}?date=YYYY-MM-DD`                | One currency                                |
+| `GET /v1/rates/{currency}/history?from=…&to=…`            | Series between two dates                    |
+| `GET /v1/currencies`                                      | Currencies in the latest publication        |
+| `GET /health`                                             | 200 when data is fresh, 503 otherwise       |
+| `GET /openapi.yaml`                                       | OpenAPI 3.1 specification                   |
+
+Configuration through environment variables: `CACHE_DIR`, `CACHE_TTL` (seconds, default 3600),
+`SOURCE_TIMEOUT` (seconds, default 10), `CORS_ORIGIN` (default `*`) and `APP_DEBUG` (`1` to show error details).
 
 ## Development
 

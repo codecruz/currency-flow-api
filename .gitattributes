@@ -4,3 +4,4 @@
 /phpunit.xml.dist   export-ignore
 /phpstan.neon.dist  export-ignore
 /.github           export-ignore
+/server            export-ignore
