@@ -6,6 +6,15 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-09
+
+### Changed
+
+- Package metadata: `homepage` points to the website and static API, plus `support` links
+  (issues, source, documentation), a more complete description and keywords.
+- Full documentation: data source and terms, static JSON API responses and update schedule,
+  API reference, releasing process, and READMEs for `server/` and `pages/`.
+
 ## [0.2.0] - 2026-11-09
 
 ### Added
@@ -27,6 +36,7 @@ and the project follows [Semantic Versioning](https://semver.org/).
 - Optional PSR-16 cache that serves stale data when the ECB is unreachable.
 - Typed exceptions under `CurrencyFlowException`.
 
-[Unreleased]: https://github.com/codecruz/currency-flow-api/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/codecruz/currency-flow-api/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/codecruz/currency-flow-api/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/codecruz/currency-flow-api/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/codecruz/currency-flow-api/releases/tag/v0.1.0

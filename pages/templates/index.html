@@ -27,6 +27,11 @@
   p { margin: 0 0 12px; }
   a { color: var(--accent); }
   .lead { color: var(--muted); font-size: 1.1rem; max-width: 660px; }
+  .links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 8px; font-size: .95rem; }
+  .uses { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 16px; }
+  .uses .card { margin: 0; }
+  .uses strong { display: block; margin-bottom: 4px; }
+  .uses p { color: var(--muted); font-size: .95rem; margin: 0; }
   .stats { display: flex; flex-wrap: wrap; gap: 24px; margin: 28px 0 8px; }
   .stat strong { display: block; font-size: 1.6rem; font-variant-numeric: tabular-nums; }
   .stat span { color: var(--muted); font-size: .9rem; }
@@ -55,7 +60,14 @@
 <body>
 <main>
   <h1>Tipos de cambio del euro</h1>
-  <p class="lead">API JSON estática y gratuita con los tipos de referencia oficiales del Banco Central Europeo, sin servidor ni claves. Se actualiza sola cada día hábil; última publicación: <strong>{{LATEST_DATE}}</strong>.</p>
+  <p class="lead">Los tipos de referencia oficiales del Banco Central Europeo desde 1999: una API JSON estática y gratuita, sin servidor ni claves, y una librería PHP. Se actualiza sola cada día hábil; última publicación: <strong>{{LATEST_DATE}}</strong>.</p>
+  <p class="links">
+    <a href="#api">API JSON</a>
+    <a href="#libreria">Librería PHP</a>
+    <a href="#servidor">API en tu servidor</a>
+    <a href="https://packagist.org/packages/codecruz/currency-flow">Packagist</a>
+    <a href="https://github.com/codecruz/currency-flow-api">GitHub</a>
+  </p>
 
   <div class="stats">
     <div class="stat"><strong>{{CURRENCY_COUNT}}</strong><span>divisas activas</span></div>
@@ -65,14 +77,21 @@
 
   <div class="card">
     <form id="lookup">
-      <label>Importe en EUR<input id="amount" type="number" min="0" step="any" value="100" inputmode="decimal"></label>
-      <label>Divisa<select id="currency" aria-label="Divisa"><option value="USD">USD</option></select></label>
+      <label>Importe<input id="amount" type="number" step="any" value="100" inputmode="decimal"></label>
+      <label>De<select id="from"><option value="EUR">EUR</option></select></label>
+      <label>A<select id="to"><option value="USD">USD</option></select></label>
       <label>Fecha<input id="date" type="date" min="{{FIRST_DATE}}" max="{{TODAY}}"></label>
     </form>
     <div id="result" aria-live="polite"><span class="muted">Cargando…</span></div>
   </div>
 
-  <h2>API</h2>
+  <div class="uses">
+    <div class="card"><strong>🌐 API JSON estática</strong><p>Ficheros JSON en GitHub Pages: sin servidor, sin claves, con CORS abierto.</p></div>
+    <div class="card"><strong>🐘 Librería PHP</strong><p><code>codecruz/currency-flow</code> en Packagist: consultas, históricos, tipos cruzados y conversiones.</p></div>
+    <div class="card"><strong>🖥️ API en tu servidor</strong><p>La misma información en tu dominio, con rangos a medida y comprobación de estado.</p></div>
+  </div>
+
+  <h2 id="api">API</h2>
   <p>Todas las rutas son ficheros JSON estáticos servidos por GitHub Pages, con CORS abierto. Una ruta sin datos devuelve <code>404</code>.</p>
   <div class="table-wrap">
     <table>
@@ -103,11 +122,25 @@
     <li>El BCE publica hacia las 16:00 (hora de Fráncfort) cada día hábil TARGET.</li>
   </ul>
 
-  <h2>Librería PHP</h2>
-  <p>Los mismos datos, con caché y consultas por rango, desde <a href="https://packagist.org/packages/codecruz/currency-flow">Packagist</a>:</p>
+  <h2 id="libreria">Librería PHP</h2>
+  <p>Los mismos datos para PHP 8.2+, con caché PSR-16, históricos, tipos cruzados entre cualquier par de divisas y conversiones. Disponible en <a href="https://packagist.org/packages/codecruz/currency-flow">Packagist</a>:</p>
   <pre><code>composer require codecruz/currency-flow</code></pre>
-  <pre><code>$flow = CodeCruz\CurrencyFlow\CurrencyFlow::ecb();
-$flow-&gt;rate('USD', '2025-03-23')-&gt;value; // "1.0827"</code></pre>
+  <pre><code>use CodeCruz\CurrencyFlow\CurrencyFlow;
+
+$flow = CurrencyFlow::ecb();
+
+$flow-&gt;rate('USD', '2025-03-23')-&gt;value;               // "1.0827" (domingo → viernes 21)
+$flow-&gt;rate('GBP', '2025-03-21', base: 'USD')-&gt;value;  // "0.773668"
+$flow-&gt;convert(100, 'USD', 'GBP', '2025-03-21')-&gt;result; // "77.37"
+$flow-&gt;history('USD', '2024-01-01', '2024-12-31');      // serie del año</code></pre>
+  <p>Documentación completa en el <a href="https://github.com/codecruz/currency-flow-api#php-library">README</a>.</p>
+
+  <h2 id="servidor">API en tu servidor</h2>
+  <p>Si necesitas rangos de fechas a medida, tu propio dominio o un endpoint de salud para tu monitorización, el repositorio incluye una API HTTP lista para desplegar (Slim 4, errores RFC 7807, ETag y especificación OpenAPI 3.1):</p>
+  <pre><code>GET /v1/rates/USD?date=2025-03-23
+GET /v1/rates/USD/history?from=2024-06-01&amp;to=2025-05-31
+GET /health</code></pre>
+  <p>Instalación y despliegue en <a href="https://github.com/codecruz/currency-flow-api/tree/main/server">server/README.md</a>.</p>
 
   <footer>
     <p>Fuente: <a href="https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html">Banco Central Europeo</a>. Los tipos de referencia se publican solo a título informativo.</p>
@@ -117,7 +150,7 @@ $flow-&gt;rate('USD', '2025-03-23')-&gt;value; // "1.0827"</code></pre>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const amount = $('amount'), currency = $('currency'), date = $('date'), result = $('result');
+  const amount = $('amount'), from = $('from'), to = $('to'), date = $('date'), result = $('result');
   const cache = new Map();
   const fmt = (n, max) => n.toLocaleString('es-ES', { maximumFractionDigits: max });
 
@@ -136,18 +169,19 @@ $flow-&gt;rate('USD', '2025-03-23')-&gt;value; // "1.0827"</code></pre>
   };
 
   async function update() {
-    const code = currency.value;
     const data = await load(date.value ? `v1/rates/${date.value}.json` : 'v1/latest.json');
-    const rate = data && data.rates[code];
-    if (!rate) {
+    const quote = (code) => (code === 'EUR' ? 1 : Number(data && data.rates[code]));
+    const a = quote(from.value), b = quote(to.value);
+    if (!data || !a || !b) {
       result.replaceChildren(line('No hay tipo publicado para esa fecha.', 'muted'));
       return;
     }
-    const value = Number(rate);
-    const eur = Number(amount.value) || 0;
+    const rate = b / a;
+    const value = Number(amount.value) || 0;
+    const derived = from.value !== 'EUR' && to.value !== 'EUR';
     const nodes = [
-      line(`${fmt(eur, 2)} EUR = ${fmt(eur * value, 4)} ${code}`, 'big'),
-      line(`1 EUR = ${rate} ${code} · 1 ${code} = ${fmt(1 / value, 6)} EUR · publicación del ${data.date}`, 'muted'),
+      line(`${fmt(value, 2)} ${from.value} = ${fmt(value * rate, 4)} ${to.value}`, 'big'),
+      line(`1 ${from.value} = ${fmt(rate, 6)} ${to.value} · 1 ${to.value} = ${fmt(1 / rate, 6)} ${from.value} · publicación del ${data.date}${derived ? ' · tipo cruzado vía EUR' : ''}`, 'muted'),
     ];
     if (data.requested_date && data.requested_date !== data.date) {
       nodes.push(line(`El ${data.requested_date} no hubo publicación; se usa la del ${data.date}.`, 'note'));
@@ -157,12 +191,14 @@ $flow-&gt;rate('USD', '2025-03-23')-&gt;value; // "1.0827"</code></pre>
 
   load('v1/currencies.json').then((data) => {
     if (!data) return;
-    const active = data.currencies.filter((c) => c.active).map((c) => c.code);
-    currency.replaceChildren(...active.map((code) => new Option(code, code, false, code === 'USD')));
+    const codes = ['EUR', ...data.currencies.filter((c) => c.active).map((c) => c.code)].sort();
+    const options = (selected) => codes.map((code) => new Option(code, code, code === selected, code === selected));
+    from.replaceChildren(...options('EUR'));
+    to.replaceChildren(...options('USD'));
     update();
   });
 
-  [amount, currency, date].forEach((el) => el.addEventListener('input', update));
+  [amount, from, to, date].forEach((el) => el.addEventListener('input', update));
 })();
 </script>
 </body>

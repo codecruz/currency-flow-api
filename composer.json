@@ -1,14 +1,28 @@
 {
     "name": "codecruz/currency-flow",
-    "description": "Official ECB euro foreign exchange reference rates, with historical lookups and previous-business-day resolution.",
+    "description": "Official ECB euro exchange reference rates since 1999: latest, historical, cross rates and conversions, with previous-business-day resolution.",
     "type": "library",
     "license": "MIT",
-    "keywords": ["currency", "exchange rates", "ecb", "forex", "euro"],
+    "keywords": [
+        "currency",
+        "exchange rates",
+        "ecb",
+        "forex",
+        "euro",
+        "currency converter",
+        "cross rates"
+    ],
+    "homepage": "https://codecruz.github.io/currency-flow-api/",
     "authors": [
         {
             "name": "codecruz"
         }
     ],
+    "support": {
+        "issues": "https://github.com/codecruz/currency-flow-api/issues",
+        "source": "https://github.com/codecruz/currency-flow-api",
+        "docs": "https://github.com/codecruz/currency-flow-api#php-library"
+    },
     "require": {
         "php": "^8.2",
         "ext-xmlreader": "*",
