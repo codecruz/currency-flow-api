@@ -87,6 +87,29 @@ The ECB publishes three feeds, used according to the date you ask for:
 Each feed is downloaded at most once per instance and once per `cacheTtl` when a cache is provided.
 The ECB updates rates around 16:00 CET on TARGET business days.
 
+## HTTP API
+
+The [`server/`](server) directory contains a ready-to-run HTTP API built on this library
+(Slim 4, file cache, RFC 7807 errors, ETags). It is not part of the Composer package.
+
+```bash
+cd server
+composer install
+composer serve            # http://127.0.0.1:8080
+```
+
+| Endpoint                                                  | Description                                 |
+|-----------------------------------------------------------|---------------------------------------------|
+| `GET /v1/rates?date=YYYY-MM-DD`                           | All rates for a date (latest if omitted)    |
+| `GET /v1/rates/{currency}?date=YYYY-MM-DD`                | One currency                                |
+| `GET /v1/rates/{currency}/history?from=…&to=…`            | Series between two dates                    |
+| `GET /v1/currencies`                                      | Currencies in the latest publication        |
+| `GET /health`                                             | 200 when data is fresh, 503 otherwise       |
+| `GET /openapi.yaml`                                       | OpenAPI 3.1 specification                   |
+
+Configuration through environment variables: `CACHE_DIR`, `CACHE_TTL` (seconds, default 3600),
+`SOURCE_TIMEOUT` (seconds, default 10), `CORS_ORIGIN` (default `*`) and `APP_DEBUG` (`1` to show error details).
+
 ## Development
 
 ```bash
