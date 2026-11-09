@@ -1,0 +1,59 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use CodeCruz\CurrencyFlow\Http\NativeTransport;
+use CodeCruz\CurrencyFlow\Pages\SiteBuilder;
+use CodeCruz\CurrencyFlow\Pages\TableProvider;
+use CodeCruz\CurrencyFlow\Provider\Ecb\EcbProvider;
+use Psr\Clock\ClockInterface;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+$options = getopt('', ['out:', 'site-url:', 'max-age-days:', 'min-currencies:']);
+$option = static fn (string $name, string $default): string => is_string($options[$name] ?? null) ? $options[$name] : $default;
+
+$out = $option('out', dirname(__DIR__) . '/_site');
+$siteUrl = $option('site-url', 'https://codecruz.github.io/currency-flow-api');
+$maxAgeDays = (int) $option('max-age-days', '5');
+$minCurrencies = (int) $option('min-currencies', '20');
+
+$clock = new class implements ClockInterface {
+    public function now(): DateTimeImmutable
+    {
+        return new DateTimeImmutable();
+    }
+};
+
+try {
+    $provider = TableProvider::from(new EcbProvider(new NativeTransport(timeoutSeconds: 60)));
+    $report = (new SiteBuilder($provider, $clock, dirname(__DIR__) . '/templates', $siteUrl))->build($out);
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Build failed: ' . $e->getMessage() . PHP_EOL);
+    exit(1);
+}
+
+printf(
+    "Built %d files in %s\nLatest publication: %s (%d days old)\nActive currencies: %d (%s)\nDaily files: %d\n",
+    $report->files,
+    $out,
+    $report->latestDate,
+    $report->ageDays,
+    count($report->activeCurrencies),
+    implode(', ', $report->activeCurrencies),
+    $report->dailyFiles,
+);
+
+// Sanity checks: fail loudly (the workflow emails the owner) instead of publishing bad data.
+$problems = [];
+if ($report->ageDays > $maxAgeDays) {
+    $problems[] = sprintf('latest publication is %d days old (limit %d)', $report->ageDays, $maxAgeDays);
+}
+if (count($report->activeCurrencies) < $minCurrencies) {
+    $problems[] = sprintf('only %d active currencies (minimum %d)', count($report->activeCurrencies), $minCurrencies);
+}
+if ($problems !== []) {
+    fwrite(STDERR, 'Sanity check failed: ' . implode('; ', $problems) . PHP_EOL);
+    exit(2);
+}

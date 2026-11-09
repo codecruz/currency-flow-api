@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tipos de cambio del euro (BCE)</title>
+<meta name="description" content="API JSON estática y gratuita con los tipos de cambio de referencia del euro publicados por el Banco Central Europeo, desde 1999.">
+<style>
+  :root {
+    --bg: #f8f9fb; --surface: #ffffff; --text: #1b1d21; --muted: #5d636b; --border: #dfe3e8;
+    --accent: #1f5fbf; --accent-soft: #e6eefb; --code-bg: #eff2f6; --ok: #1e7d32; --warn: #a15c00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121417; --surface: #1a1d21; --text: #eceef1; --muted: #9aa1a9; --border: #2c3036;
+      --accent: #8ab4f8; --accent-soft: #1d2a3d; --code-bg: #22262b; --ok: #81c784; --warn: #ffb74d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.02em; }
+  h2 { font-size: 1.25rem; margin: 48px 0 12px; }
+  p { margin: 0 0 12px; }
+  a { color: var(--accent); }
+  .lead { color: var(--muted); font-size: 1.1rem; max-width: 660px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 24px; margin: 28px 0 8px; }
+  .stat strong { display: block; font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: .9rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 16px; }
+  form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
+  input, select {
+    font: inherit; font-size: 1.05rem; padding: 9px 12px; width: 100%;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text);
+  }
+  #result { margin-top: 18px; min-height: 3.2em; }
+  .big { font-size: clamp(1.4rem, 4vw, 1.9rem); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .note { color: var(--warn); font-size: .9rem; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; margin: 8px 0 16px; }
+  pre code { background: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .table-wrap { overflow-x: auto; }
+  footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tipos de cambio del euro</h1>
+  <p class="lead">API JSON estática y gratuita con los tipos de referencia oficiales del Banco Central Europeo, sin servidor ni claves. Se actualiza sola cada día hábil; última publicación: <strong>{{LATEST_DATE}}</strong>.</p>
+
+  <div class="stats">
+    <div class="stat"><strong>{{CURRENCY_COUNT}}</strong><span>divisas activas</span></div>
+    <div class="stat"><strong>{{FIRST_DATE}}</strong><span>primer dato</span></div>
+    <div class="stat"><strong>{{DAILY_FILES}}</strong><span>días consultables</span></div>
+  </div>
+
+  <div class="card">
+    <form id="lookup">
+      <label>Importe en EUR<input id="amount" type="number" min="0" step="any" value="100" inputmode="decimal"></label>
+      <label>Divisa<select id="currency" aria-label="Divisa"><option value="USD">USD</option></select></label>
+      <label>Fecha<input id="date" type="date" min="{{FIRST_DATE}}" max="{{TODAY}}"></label>
+    </form>
+    <div id="result" aria-live="polite"><span class="muted">Cargando…</span></div>
+  </div>
+
+  <h2>API</h2>
+  <p>Todas las rutas son ficheros JSON estáticos servidos por GitHub Pages, con CORS abierto. Una ruta sin datos devuelve <code>404</code>.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Ruta</th><th>Contenido</th></tr></thead>
+      <tbody>
+        <tr><td><a href="v1/latest.json"><code>/v1/latest.json</code></a></td><td>Última publicación, todas las divisas</td></tr>
+        <tr><td><a href="v1/rates/{{LATEST_DATE}}.json"><code>/v1/rates/{YYYY-MM-DD}.json</code></a></td><td>Cualquier día desde {{FIRST_DATE}}. En fines de semana y festivos devuelve la publicación anterior.</td></tr>
+        <tr><td><a href="v1/history/USD.json"><code>/v1/history/{divisa}.json</code></a></td><td>Serie histórica completa de una divisa</td></tr>
+        <tr><td><a href="v1/history/USD/2025.json"><code>/v1/history/{divisa}/{año}.json</code></a></td><td>Serie de una divisa en un año</td></tr>
+        <tr><td><a href="v1/currencies.json"><code>/v1/currencies.json</code></a></td><td>Todas las divisas publicadas alguna vez, con su periodo y si siguen activas</td></tr>
+        <tr><td><a href="v1/meta.json"><code>/v1/meta.json</code></a></td><td>Fuente, cobertura y fecha de generación</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <pre><code>curl {{SITE_URL}}/v1/rates/2025-03-23.json</code></pre>
+  <pre><code>{
+  "base": "EUR",
+  "date": "2025-03-21",
+  "requested_date": "2025-03-23",
+  "source": "ECB",
+  "rates": { "AUD": "1.724", "BRL": "6.1911", "…": "…", "USD": "1.0827" }
+}</code></pre>
+  <ul>
+    <li>Los tipos expresan cuántas unidades de la divisa equivalen a <strong>1 EUR</strong>.</li>
+    <li>Los valores son <strong>cadenas decimales</strong> tal como las publica el BCE, para no perder precisión.</li>
+    <li><code>date</code> es la publicación usada; <code>requested_date</code>, la fecha pedida. Si son distintas, era fin de semana o festivo.</li>
+    <li>El BCE publica hacia las 16:00 (hora de Fráncfort) cada día hábil TARGET.</li>
+  </ul>
+
+  <h2>Librería PHP</h2>
+  <p>Los mismos datos, con caché y consultas por rango, desde <a href="https://packagist.org/packages/codecruz/currency-flow">Packagist</a>:</p>
+  <pre><code>composer require codecruz/currency-flow</code></pre>
+  <pre><code>$flow = CodeCruz\CurrencyFlow\CurrencyFlow::ecb();
+$flow-&gt;rate('USD', '2025-03-23')-&gt;value; // "1.0827"</code></pre>
+
+  <footer>
+    <p>Fuente: <a href="https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html">Banco Central Europeo</a>. Los tipos de referencia se publican solo a título informativo.</p>
+    <p>Código MIT en <a href="https://github.com/codecruz/currency-flow-api">github.com/codecruz/currency-flow-api</a> · Generado {{GENERATED_AT}}</p>
+  </footer>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const amount = $('amount'), currency = $('currency'), date = $('date'), result = $('result');
+  const cache = new Map();
+  const fmt = (n, max) => n.toLocaleString('es-ES', { maximumFractionDigits: max });
+
+  const load = (url) => {
+    if (!cache.has(url)) {
+      cache.set(url, fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+    }
+    return cache.get(url);
+  };
+
+  const line = (text, cls) => {
+    const div = document.createElement('div');
+    if (cls) div.className = cls;
+    div.textContent = text;
+    return div;
+  };
+
+  async function update() {
+    const code = currency.value;
+    const data = await load(date.value ? `v1/rates/${date.value}.json` : 'v1/latest.json');
+    const rate = data && data.rates[code];
+    if (!rate) {
+      result.replaceChildren(line('No hay tipo publicado para esa fecha.', 'muted'));
+      return;
+    }
+    const value = Number(rate);
+    const eur = Number(amount.value) || 0;
+    const nodes = [
+      line(`${fmt(eur, 2)} EUR = ${fmt(eur * value, 4)} ${code}`, 'big'),
+      line(`1 EUR = ${rate} ${code} · 1 ${code} = ${fmt(1 / value, 6)} EUR · publicación del ${data.date}`, 'muted'),
+    ];
+    if (data.requested_date && data.requested_date !== data.date) {
+      nodes.push(line(`El ${data.requested_date} no hubo publicación; se usa la del ${data.date}.`, 'note'));
+    }
+    result.replaceChildren(...nodes);
+  }
+
+  load('v1/currencies.json').then((data) => {
+    if (!data) return;
+    const active = data.currencies.filter((c) => c.active).map((c) => c.code);
+    currency.replaceChildren(...active.map((code) => new Option(code, code, false, code === 'USD')));
+    update();
+  });
+
+  [amount, currency, date].forEach((el) => el.addEventListener('input', update));
+})();
+</script>
+</body>
+</html>

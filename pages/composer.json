@@ -1,0 +1,47 @@
+{
+    "name": "codecruz/currency-flow-pages",
+    "description": "Builds the static JSON API of ECB exchange rates published on GitHub Pages.",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "codecruz"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "path",
+            "url": "..",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "codecruz/currency-flow": "*@dev",
+        "psr/clock": "^1.0"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "CodeCruz\\CurrencyFlow\\Pages\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "CodeCruz\\CurrencyFlow\\Pages\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "build": "php bin/build --out _site",
+        "test": "phpunit",
+        "analyse": "phpstan analyse"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

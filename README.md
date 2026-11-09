@@ -8,6 +8,9 @@ Official euro foreign exchange reference rates from the **European Central Bank*
 - Optional PSR-16 cache, with stale data served if the ECB is unreachable.
 - No HTTP client or framework required.
 
+Also available as a free **static JSON API** on GitHub Pages, no server and no API key:
+[codecruz.github.io/currency-flow-api](https://codecruz.github.io/currency-flow-api/).
+
 ## Installation
 
 ```bash
@@ -87,7 +90,32 @@ The ECB publishes three feeds, used according to the date you ask for:
 Each feed is downloaded at most once per instance and once per `cacheTtl` when a cache is provided.
 The ECB updates rates around 16:00 CET on TARGET business days.
 
-## HTTP API
+## Static JSON API (GitHub Pages)
+
+Static JSON files, rebuilt from the ECB feed several times a day by
+[`pages.yml`](.github/workflows/pages.yml) using this library. Open CORS, no rate limits,
+and a missing date or currency is a `404`.
+
+| Endpoint                                                                                                   | Contents                                                     |
+|------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
+| [`/v1/latest.json`](https://codecruz.github.io/currency-flow-api/v1/latest.json)                           | Latest publication, every currency                           |
+| [`/v1/rates/{YYYY-MM-DD}.json`](https://codecruz.github.io/currency-flow-api/v1/rates/2025-03-23.json)     | Any calendar day since 1999-01-04 (weekends resolve to the previous publication) |
+| [`/v1/history/{currency}.json`](https://codecruz.github.io/currency-flow-api/v1/history/USD.json)          | Full series of a currency                                    |
+| [`/v1/history/{currency}/{year}.json`](https://codecruz.github.io/currency-flow-api/v1/history/USD/2025.json) | Series of a currency for one year                         |
+| [`/v1/currencies.json`](https://codecruz.github.io/currency-flow-api/v1/currencies.json)                   | Every currency ever published, with its period and status    |
+| [`/v1/meta.json`](https://codecruz.github.io/currency-flow-api/v1/meta.json)                               | Source, coverage and generation time                         |
+
+```bash
+curl https://codecruz.github.io/currency-flow-api/v1/rates/2025-03-23.json
+```
+
+```json
+{"base":"EUR","date":"2025-03-21","requested_date":"2025-03-23","source":"ECB","rates":{"AUD":"1.724","…":"…","USD":"1.0827"}}
+```
+
+The builder lives in [`pages/`](pages) (`composer install && composer build`) and is not part of the Composer package.
+
+## HTTP API (self-hosted)
 
 The [`server/`](server) directory contains a ready-to-run HTTP API built on this library
 (Slim 4, file cache, RFC 7807 errors, ETags). It is not part of the Composer package.
