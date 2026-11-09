@@ -1,0 +1,274 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CodeCruz\CurrencyFlow\Tests;
+
+use CodeCruz\CurrencyFlow\CurrencyFlow;
+use CodeCruz\CurrencyFlow\Exception\InvalidArgument;
+use CodeCruz\CurrencyFlow\Exception\RateNotAvailable;
+use CodeCruz\CurrencyFlow\Exception\SourceUnavailable;
+use CodeCruz\CurrencyFlow\Exception\UnknownCurrency;
+use CodeCruz\CurrencyFlow\Provider\Ecb\EcbProvider;
+use CodeCruz\CurrencyFlow\Tests\Support\ArrayCache;
+use CodeCruz\CurrencyFlow\Tests\Support\FakeTransport;
+use CodeCruz\CurrencyFlow\Tests\Support\FixedClock;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
+
+final class CurrencyFlowTest extends TestCase
+{
+    private FakeTransport $transport;
+
+    private FixedClock $clock;
+
+    protected function setUp(): void
+    {
+        $this->transport = FakeTransport::ecbFixtures();
+        $this->clock = FixedClock::at('2025-03-24 10:00'); // Monday
+    }
+
+    private function flow(?ArrayCache $cache = null, int $maxLookbackDays = 7): CurrencyFlow
+    {
+        return new CurrencyFlow(
+            new EcbProvider($this->transport),
+            $cache,
+            maxLookbackDays: $maxLookbackDays,
+            clock: $this->clock,
+        );
+    }
+
+    public function testLatestRateUsesDailyFeedOnly(): void
+    {
+        $rate = $this->flow()->rate('usd');
+
+        self::assertSame('EUR', $rate->base);
+        self::assertSame('USD', $rate->currency);
+        self::assertSame('1.0821', $rate->value);
+        self::assertSame('2025-03-21', $rate->date->format('Y-m-d'));
+        self::assertNull($rate->requestedDate);
+        self::assertFalse($rate->isFallback());
+        self::assertSame([EcbProvider::URL_LATEST => 1], $this->transport->calls);
+    }
+
+    /**
+     * @return iterable<string, array{string, string, string, string}>
+     */
+    public static function datedLookups(): iterable
+    {
+        yield 'exact publication date' => ['USD', '2025-03-20', '2025-03-20', '1.0855'];
+        yield 'weekend falls back to Friday' => ['USD', '2025-03-23', '2025-03-21', '1.0821'];
+        yield 'gap inside recent feed' => ['GBP', '2025-03-18', '2025-03-14', '0.84000'];
+        yield 'older than recent feed uses full history' => ['USD', '2025-02-04', '2025-02-03', '1.0274'];
+        yield 'christmas holidays' => ['USD', '2024-12-25', '2024-12-23', '1.0412'];
+        yield 'first published day' => ['USD', '1999-01-04', '1999-01-04', '1.1789'];
+        yield 'discontinued currency on a date it existed' => ['RUB', '2022-02-28', '2022-02-28', '117.2010'];
+    }
+
+    #[DataProvider('datedLookups')]
+    public function testRateOnDate(string $currency, string $requested, string $effective, string $value): void
+    {
+        $rate = $this->flow()->rate($currency, $requested);
+
+        self::assertSame($value, $rate->value);
+        self::assertSame($effective, $rate->date->format('Y-m-d'));
+        self::assertSame($requested, $rate->requestedDate?->format('Y-m-d'));
+        self::assertSame($requested !== $effective, $rate->isFallback());
+    }
+
+    public function testAcceptsDateTimeObjects(): void
+    {
+        $rate = $this->flow()->rate('USD', new \DateTimeImmutable('2025-03-20'));
+
+        self::assertSame('1.0855', $rate->value);
+    }
+
+    public function testBaseCurrencyIsAlwaysOne(): void
+    {
+        $rate = $this->flow()->rate('EUR', '2025-03-22');
+
+        self::assertSame('1', $rate->value);
+        self::assertSame('2025-03-21', $rate->date->format('Y-m-d'));
+    }
+
+    public function testLookbackLimitIsEnforced(): void
+    {
+        $this->expectException(RateNotAvailable::class);
+        $this->expectExceptionMessage('2025-03-14, 4 days earlier (limit: 3)');
+
+        $this->flow(maxLookbackDays: 3)->rate('USD', '2025-03-18');
+    }
+
+    public function testLongGapInHistoryIsNotAvailable(): void
+    {
+        $this->expectException(RateNotAvailable::class);
+
+        $this->flow()->rate('USD', '2022-03-15');
+    }
+
+    public function testDateBeforeHistoryIsNotAvailable(): void
+    {
+        $this->expectException(RateNotAvailable::class);
+        $this->expectExceptionMessage('data starts on 1999-01-04');
+
+        $this->flow()->rate('USD', '1998-12-31');
+    }
+
+    public function testDiscontinuedCurrencyIsNotAvailableButNotUnknown(): void
+    {
+        $this->expectException(RateNotAvailable::class);
+
+        $this->flow()->rate('RUB', '2024-12-23');
+    }
+
+    public function testUnknownCurrency(): void
+    {
+        $this->expectException(UnknownCurrency::class);
+
+        $this->flow()->rate('XYZ');
+    }
+
+    /**
+     * @return iterable<string, array{string, string|null}>
+     */
+    public static function invalidArguments(): iterable
+    {
+        yield 'short code' => ['US', null];
+        yield 'numeric code' => ['840', null];
+        yield 'legacy date format' => ['USD', '23-03-2025'];
+        yield 'impossible date' => ['USD', '2025-02-30'];
+        yield 'future date' => ['USD', '2025-03-25'];
+    }
+
+    #[DataProvider('invalidArguments')]
+    public function testInvalidArguments(string $currency, ?string $date): void
+    {
+        $this->expectException(InvalidArgument::class);
+
+        $this->flow()->rate($currency, $date);
+    }
+
+    public function testAllRatesForDate(): void
+    {
+        $rates = $this->flow()->rates('2025-03-22');
+
+        self::assertSame(['GBP', 'JPY', 'USD'], array_keys($rates));
+        self::assertSame('161.53', $rates['JPY']->value);
+        self::assertSame('2025-03-21', $rates['JPY']->date->format('Y-m-d'));
+    }
+
+    public function testHistoryReturnsPublicationDatesOldestFirst(): void
+    {
+        $history = $this->flow()->history('USD', '2025-03-14', '2025-03-21');
+
+        self::assertSame(
+            ['2025-03-14' => '1.0880', '2025-03-20' => '1.0855', '2025-03-21' => '1.0821'],
+            array_combine(
+                array_map(static fn ($r) => $r->date->format('Y-m-d'), $history),
+                array_map(static fn ($r) => $r->value, $history),
+            ),
+        );
+    }
+
+    public function testHistoryRejectsReversedRange(): void
+    {
+        $this->expectException(InvalidArgument::class);
+
+        $this->flow()->history('USD', '2025-03-21', '2025-03-14');
+    }
+
+    public function testHistoryRejectsUnknownCurrency(): void
+    {
+        $this->expectException(UnknownCurrency::class);
+
+        $this->flow()->history('XYZ', '2025-03-14', '2025-03-21');
+    }
+
+    public function testCurrencies(): void
+    {
+        self::assertSame(['GBP', 'JPY', 'USD'], $this->flow()->currencies());
+    }
+
+    public function testRateSerializesToArray(): void
+    {
+        self::assertSame(
+            [
+                'base' => 'EUR',
+                'currency' => 'USD',
+                'rate' => '1.0821',
+                'date' => '2025-03-21',
+                'requested_date' => '2025-03-23',
+                'source' => 'ECB',
+            ],
+            $this->flow()->rate('USD', '2025-03-23')->toArray(),
+        );
+    }
+
+    public function testTablesAreFetchedOncePerInstance(): void
+    {
+        $flow = $this->flow();
+        $flow->rate('USD');
+        $flow->rate('GBP');
+        $flow->currencies();
+
+        self::assertSame(1, $this->transport->totalCalls());
+    }
+
+    public function testFreshCacheIsSharedBetweenInstances(): void
+    {
+        $cache = new ArrayCache();
+        $this->flow($cache)->rate('USD');
+        $this->clock->advance('+30 minutes');
+        $this->flow($cache)->rate('USD');
+
+        self::assertSame(1, $this->transport->totalCalls());
+    }
+
+    public function testExpiredCacheIsRefreshed(): void
+    {
+        $cache = new ArrayCache();
+        $this->flow($cache)->rate('USD');
+        $this->clock->advance('+2 hours');
+        $this->flow($cache)->rate('USD');
+
+        self::assertSame(2, $this->transport->totalCalls());
+    }
+
+    public function testStaleCacheIsServedWhenSourceIsDown(): void
+    {
+        $cache = new ArrayCache();
+        $this->flow($cache)->rate('USD');
+        $this->clock->advance('+2 hours');
+        $this->transport->down = true;
+
+        self::assertSame('1.0821', $this->flow($cache)->rate('USD')->value);
+    }
+
+    public function testStaleCacheIsServedWhenSourceReturnsGarbage(): void
+    {
+        $cache = new ArrayCache();
+        $this->flow($cache)->rate('USD');
+        $this->clock->advance('+2 hours');
+        $this->transport->respond(EcbProvider::URL_LATEST, '<html>Maintenance</html>');
+
+        self::assertSame('1.0821', $this->flow($cache)->rate('USD')->value);
+    }
+
+    public function testSourceErrorsPropagateWithoutCache(): void
+    {
+        $this->transport->down = true;
+
+        $this->expectException(SourceUnavailable::class);
+
+        $this->flow()->rate('USD');
+    }
+
+    public function testCorruptCacheEntryIsIgnored(): void
+    {
+        $cache = new ArrayCache();
+        $cache->set('currency-flow.ecb.latest', ['fetched_at' => time(), 'rates' => ['nope' => []]]);
+
+        self::assertSame('1.0821', $this->flow($cache)->rate('USD')->value);
+        self::assertSame(1, $this->transport->totalCalls());
+    }
+}
