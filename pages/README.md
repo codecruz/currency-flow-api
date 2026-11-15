@@ -13,6 +13,7 @@ API resolves weekends and holidays exactly like the library and the HTTP API.
 index.html                         documentation and converter, in English (x-default)
 {es,de,fr,it,pt}/index.html        the same page in each other language
 404.html                           page for missing routes, in the visitor's language
+assets/                            share image per language (og-image-{locale}.png) and icons
 v1/meta.json                       source, coverage and generation time
 v1/latest.json                     latest publication, every currency
 v1/rates/{YYYY-MM-DD}.json         every calendar day from 1999-01-04 to today
@@ -74,8 +75,11 @@ The site is generated in English (at the root, also `x-default`), Spanish, Germa
 
 1. Copy [`translations/en.json`](translations/en.json) to `translations/<code>.json` and translate every value.
    `_name` is the language's own name, shown in the switcher, and `_thousands` its thousands separator.
-2. Add the code to `SiteBuilder::LOCALES` in [`src/SiteBuilder.php`](src/SiteBuilder.php).
-3. Run `composer test`. The build fails if any language is missing a key or has extra ones.
+2. Add the code to `SiteBuilder::LOCALES` and its Open Graph locale to `SiteBuilder::OG_LOCALES` in
+   [`src/SiteBuilder.php`](src/SiteBuilder.php).
+3. Add the language's texts to `TEXTS` in [`../tools/make_assets.py`](../tools/make_assets.py) and run it to draw
+   its share image.
+4. Run `composer test`. The build fails if any language is missing a key or has extra ones.
 
 Values may contain HTML (links, `<code>`) and the placeholders `{{LATEST_DATE}}` and `{{FIRST_DATE}}`. Keys
 starting with `js_` are used by the converter, and `{date}` and `{requested}` are filled in by the browser.
@@ -86,6 +90,14 @@ starting with `js_` are used by the converter, and `{date}` and `{requested}` ar
 `{{t:key}}` markers for translations and `{{PLACEHOLDERS}}` for build data (`LATEST_DATE`, `FIRST_DATE`, `TODAY`,
 `CURRENCY_COUNT`, `DAILY_FILES`, `SITE_URL`, `GENERATED_AT`). Translations are filled in first, then build data. The
 converter is vanilla JavaScript that reads the JSON files with relative URLs, so it also works in a local preview.
+
+Each page has Open Graph and Twitter tags pointing to its language's share image. The images and icons live in
+[`templates/assets/`](templates/assets) and are copied to `assets/`. They are drawn by
+[`../tools/make_assets.py`](../tools/make_assets.py) (needs Chrome or Chromium and Pillow):
+
+```bash
+python3 tools/make_assets.py    # from the repository root
+```
 
 ## Development
 

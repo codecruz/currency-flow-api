@@ -15,6 +15,7 @@ use Psr\Clock\ClockInterface;
  *     index.html                         documentation and converter, in English (x-default)
  *     {es,de,fr,it,pt}/index.html        the same page in each other language
  *     404.html                           multilingual not-found page
+ *     assets/                            share images (one per language) and icons
  *     v1/meta.json                       source, coverage and generation time
  *     v1/latest.json                     latest publication, every currency
  *     v1/rates/{YYYY-MM-DD}.json         every calendar day since 1999-01-04
@@ -29,6 +30,9 @@ final class SiteBuilder
 
     /** Site languages; the first one is the default, served at the root. */
     public const LOCALES = ['en', 'es', 'de', 'fr', 'it', 'pt'];
+
+    /** Open Graph locale of each site language. */
+    private const OG_LOCALES = ['en' => 'en_US', 'es' => 'es_ES', 'de' => 'de_DE', 'fr' => 'fr_FR', 'it' => 'it_IT', 'pt' => 'pt_PT'];
 
     private const JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR;
 
@@ -195,6 +199,12 @@ final class SiteBuilder
                     '{{ROOT}}' => $root,
                     '{{CANONICAL}}' => $url($locale),
                     '{{HREFLANG}}' => implode("\n", $hreflang),
+                    '{{OG_LOCALE}}' => self::OG_LOCALES[$locale],
+                    '{{OG_LOCALE_ALTERNATES}}' => implode("\n", array_map(
+                        static fn (string $other): string => sprintf('<meta property="og:locale:alternate" content="%s">', self::OG_LOCALES[$other]),
+                        array_values(array_diff(self::LOCALES, [$locale])),
+                    )),
+                    '{{OG_IMAGE}}' => $siteUrl . '/assets/og-image-' . $locale . '.png',
                     '{{LANGUAGE_LINKS}}' => implode(' ', $links),
                     '{{DAILY_FILES}}' => number_format($dailyFiles, 0, '', $t['_thousands']),
                     '{{JS_STRINGS}}' => json_encode($jsStrings, self::JSON_FLAGS | JSON_HEX_TAG),
@@ -209,6 +219,30 @@ final class SiteBuilder
             $this->translationPairs($translations[$default]),
             ['{{NF_JSON}}' => json_encode($notFound, self::JSON_FLAGS | JSON_HEX_TAG)] + $globals,
         );
+
+        $this->copyAssets($outDir . '/assets');
+    }
+
+    /**
+     * Copies the share images and icons made by tools/make_assets.py.
+     */
+    private function copyAssets(string $target): void
+    {
+        $source = $this->templateDir . '/assets';
+        if (!is_dir($source)) {
+            return;
+        }
+
+        foreach (array_diff((array) scandir($source), ['.', '..']) as $entry) {
+            if (!is_file($source . '/' . $entry)) {
+                continue;
+            }
+            $content = file_get_contents($source . '/' . $entry);
+            if ($content === false) {
+                throw new \RuntimeException(sprintf('Cannot read "%s".', $source . '/' . $entry));
+            }
+            $this->write($target . '/' . $entry, $content);
+        }
     }
 
     /**

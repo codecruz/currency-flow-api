@@ -3,6 +3,7 @@
   "_thousands": ".",
   "title": "Tipos de cambio del euro (BCE): API JSON y librería PHP gratuitas",
   "description": "API JSON estática y librería PHP gratuitas con los tipos de cambio de referencia del euro publicados por el Banco Central Europeo desde 1999.",
+  "og_image_alt": "currency-flow: tipos de cambio del euro del BCE, con un ejemplo de la API JSON",
   "h1": "Tipos de cambio del euro",
   "lead": "Los tipos de referencia oficiales del Banco Central Europeo desde 1999: una API JSON estática y gratuita, sin servidor ni claves, y una librería PHP. Se actualiza sola cada día hábil; última publicación: <strong>{{LATEST_DATE}}</strong>.",
   "nav_api": "API JSON",

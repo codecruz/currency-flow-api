@@ -3,6 +3,7 @@
   "_thousands": ",",
   "title": "Euro exchange rates (ECB): free JSON API and PHP library",
   "description": "Free static JSON API and PHP library with the official euro foreign exchange reference rates published by the European Central Bank since 1999.",
+  "og_image_alt": "currency-flow: euro exchange rates from the ECB, with an example of the JSON API",
   "h1": "Euro exchange rates",
   "lead": "The official reference rates of the European Central Bank since 1999: a free static JSON API, with no server and no keys, and a PHP library. It updates itself every business day; latest publication: <strong>{{LATEST_DATE}}</strong>.",
   "nav_api": "JSON API",
