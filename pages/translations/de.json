@@ -3,6 +3,7 @@
   "_thousands": ".",
   "title": "Euro-Wechselkurse (EZB): kostenlose JSON-API und PHP-Bibliothek",
   "description": "Kostenlose statische JSON-API und PHP-Bibliothek mit den amtlichen Euro-Referenzkursen der Europäischen Zentralbank seit 1999.",
+  "og_image_alt": "currency-flow: Euro-Wechselkurse der EZB, mit einem Beispiel der JSON-API",
   "h1": "Euro-Wechselkurse",
   "lead": "Die amtlichen Referenzkurse der Europäischen Zentralbank seit 1999: eine kostenlose statische JSON-API ohne Server und ohne Schlüssel sowie eine PHP-Bibliothek. Sie aktualisiert sich an jedem Geschäftstag selbst; letzte Veröffentlichung: <strong>{{LATEST_DATE}}</strong>.",
   "nav_api": "JSON-API",

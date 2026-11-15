@@ -177,6 +177,34 @@ final class SiteBuilderTest extends TestCase
         }
     }
 
+    public function testShareTagsAndIcons(): void
+    {
+        $this->build();
+
+        foreach (SiteBuilder::LOCALES as $locale) {
+            $path = $locale === 'en' ? 'index.html' : $locale . '/index.html';
+            $html = (string) file_get_contents($this->out . '/' . $path);
+            $image = 'https://example.test/api/assets/og-image-' . $locale . '.png';
+
+            self::assertStringContainsString('<meta property="og:image" content="' . $image . '">', $html, $path);
+            self::assertStringContainsString('<meta name="twitter:image" content="' . $image . '">', $html, $path);
+            self::assertSame(5, substr_count($html, 'property="og:locale:alternate"'), $path);
+            self::assertFileExists($this->out . '/assets/og-image-' . $locale . '.png');
+        }
+
+        $es = (string) file_get_contents($this->out . '/es/index.html');
+        self::assertStringContainsString('<meta property="og:locale" content="es_ES">', $es);
+        self::assertStringContainsString('<meta property="og:url" content="https://example.test/api/es/">', $es);
+        self::assertStringContainsString('<link rel="icon" href="../assets/icon.svg" type="image/svg+xml">', $es);
+
+        $notFound = (string) file_get_contents($this->out . '/404.html');
+        self::assertStringContainsString('<link rel="icon" href="https://example.test/api/assets/icon.svg" type="image/svg+xml">', $notFound);
+
+        foreach (['icon.svg', 'icon-192.png', 'apple-touch-icon.png'] as $icon) {
+            self::assertFileExists($this->out . '/assets/' . $icon);
+        }
+    }
+
     public function testPagesInFoldersPointToTheSharedApi(): void
     {
         $this->build();

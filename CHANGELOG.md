@@ -6,6 +6,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Website: Open Graph and Twitter tags with a share image per language, favicons and app icons.
+  `tools/make_assets.py` draws the images.
+
 ## [0.2.1] - 2026-11-09
 
 ### Changed
