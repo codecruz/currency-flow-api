@@ -3,6 +3,7 @@
   "_thousands": ".",
   "title": "Taxas de câmbio do euro (BCE): API JSON e biblioteca PHP gratuitas",
   "description": "API JSON estática e biblioteca PHP gratuitas com as taxas de câmbio de referência do euro publicadas pelo Banco Central Europeu desde 1999.",
+  "og_image_alt": "currency-flow: taxas de câmbio do euro do BCE, com um exemplo da API JSON",
   "h1": "Taxas de câmbio do euro",
   "lead": "As taxas de referência oficiais do Banco Central Europeu desde 1999: uma API JSON estática e gratuita, sem servidor nem chaves, e uma biblioteca PHP. Atualiza-se sozinha todos os dias úteis; última publicação: <strong>{{LATEST_DATE}}</strong>.",
   "nav_api": "API JSON",
