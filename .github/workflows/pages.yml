@@ -62,6 +62,20 @@ jobs:
         with:
           path: pages/_site
 
+      # deploy-pages lists the run's artifacts right after the upload, and that listing
+      # lags behind at times (actions/deploy-pages#451). Wait until the artifact shows up.
+      - name: Wait for the artifact to be listed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 30); do
+            count=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts?name=github-pages" --jq '.total_count') || count=0
+            if [ "$count" -ge 1 ]; then exit 0; fi
+            sleep 3
+          done
+          echo "::error::The github-pages artifact was not listed after 90 seconds."
+          exit 1
+
       - id: deployment
         uses: actions/deploy-pages@v4
 
