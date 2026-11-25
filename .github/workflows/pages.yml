@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url || steps.deployment_last.outputs.page_url }}
     defaults:
       run:
         working-directory: pages
@@ -62,21 +62,27 @@ jobs:
         with:
           path: pages/_site
 
-      # deploy-pages lists the run's artifacts right after the upload, and that listing
-      # lags behind at times (actions/deploy-pages#451). Wait until the artifact shows up.
-      - name: Wait for the artifact to be listed
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for attempt in $(seq 1 30); do
-            count=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts?name=github-pages" --jq '.total_count') || count=0
-            if [ "$count" -ge 1 ]; then exit 0; fi
-            sleep 3
-          done
-          echo "::error::The github-pages artifact was not listed after 90 seconds."
-          exit 1
-
+      # deploy-pages looks the artifact up in the Actions results service right after the
+      # upload, and that listing lags behind at times, up to tens of seconds
+      # (actions/deploy-pages#451). The REST artifacts API is already consistent by then,
+      # so polling it does not help: the deployment itself is retried instead.
       - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - if: steps.deployment.outcome == 'failure'
+        run: sleep 15
+
+      - id: deployment_retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - if: steps.deployment_retry.outcome == 'failure'
+        run: sleep 60
+
+      - id: deployment_last
+        if: steps.deployment_retry.outcome == 'failure'
         uses: actions/deploy-pages@v4
 
       # GitHub disables scheduled workflows after 60 days without repository activity.
